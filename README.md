@@ -1,16 +1,42 @@
-# Introduction to GitHub
+# skills-introduction-to-github
 
-<img src="https://octodex.github.com/images/Professortocat_v2.png" align="right" height="200px" />
-
-Hey MinnMinn!
-
-Mona here. I'm done preparing your exercise. Hope you enjoy! 💚
-
-Remember, it's self-paced so feel free to take a break! ☕️
-
-[![](https://img.shields.io/badge/Go%20to%20Exercise-%E2%86%92-1f883d?style=for-the-badge&logo=github&labelColor=197935)](https://github.com/MinnMinn/skills-introduction-to-github/issues/1)
+A lightweight **User Preferences & Orders API** built with [FastAPI](https://fastapi.tiangolo.com/).  
+It demonstrates core GitHub collaboration workflows — branching, pull requests, and code review — while shipping a real, runnable service.
 
 ---
 
-&copy; 2025 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](https://gh.io/mit)
+## Prerequisites
 
+- Python **3.11+**
+- `pip` (or a virtual-environment manager such as `venv` / `uv`)
+
+---
+
+## Quickstart
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/MinnMinn/skills-introduction-to-github.git
+cd skills-introduction-to-github
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Start the development server
+uvicorn src.main:app --reload
+```
+
+The API will be available at <http://127.0.0.1:8000>.  
+Interactive docs (Swagger UI) are at <http://127.0.0.1:8000/docs>.
+
+### Run the tests
+
+```bash
+pytest
+```
+
+---
+
+## License
+
+[MIT](LICENSE) © GitHub, Inc.
