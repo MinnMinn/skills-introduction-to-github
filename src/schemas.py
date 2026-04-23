@@ -12,7 +12,7 @@ import uuid
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ class PreferencesResponse(BaseModel):
     theme: Literal["light", "dark"]
     language: str
     notifications: bool
-    timezone: str
+    avatar_url: Optional[str] = None
     updated_at: str
 
     model_config = {"from_attributes": True}
@@ -50,6 +50,7 @@ class PreferencesUpdateRequest(BaseModel):
     language: Optional[str] = None
     notifications: Optional[bool] = None
     timezone: Optional[str] = None
+    avatar_url: Optional[HttpUrl] = None
 
     @field_validator("language")
     @classmethod
