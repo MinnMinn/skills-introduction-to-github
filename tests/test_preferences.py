@@ -19,10 +19,10 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
-from src.db.models import UserSettings
-from src.db.repos.preferences_repo import PreferencesRepository
-from src.main import app
-from src.api.endpoints import get_repo
+from internal.domain.user import UserSettings
+from internal.repository.user_repo import PreferencesRepository
+from cmd.api.main import app
+from internal.handler.user_handler import get_repo
 
 # ---------------------------------------------------------------------------
 # Fixtures
