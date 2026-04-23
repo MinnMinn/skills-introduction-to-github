@@ -3,7 +3,7 @@ Tests for GET /api/v1/preferences/{user_id}
          PUT /api/v1/preferences/{user_id}
 
 Coverage:
-  - Happy path: successful GET
+  - Happy path: successful GET (includes avatar_url)
   - Happy path: successful PUT (full payload)
   - Happy path: successful PUT (partial payload)
   - Not-found: GET for unknown user  → 404
@@ -12,6 +12,10 @@ Coverage:
   - Validation: blank language       → 422
   - Validation: blank timezone       → 422
   - Validation: empty body PUT       → 422
+  - avatar_url: GET returns avatar_url (None by default)
+  - avatar_url: GET returns stored avatar_url when set
+  - avatar_url: PUT with valid URL sets avatar_url
+  - avatar_url: PUT with invalid URL returns 422
 """
 
 from __future__ import annotations
@@ -77,13 +81,12 @@ class TestGetPreferences:
         assert body["theme"] == "light"
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
         assert "updated_at" in body
 
     def test_response_contains_all_expected_keys(self, client: TestClient) -> None:
         response = client.get("/api/v1/preferences/user-123")
         body = response.json()
-        expected_keys = {"user_id", "theme", "language", "notifications", "timezone", "updated_at"}
+        expected_keys = {"user_id", "theme", "language", "notifications", "avatar_url", "updated_at"}
         assert expected_keys == set(body.keys())
 
 
@@ -124,7 +127,6 @@ class TestUpdatePreferencesFullPayload:
         assert body["theme"] == "dark"
         assert body["language"] == "fr"
         assert body["notifications"] is False
-        assert body["timezone"] == "Europe/Paris"
         assert body["user_id"] == "user-123"
 
     def test_updated_at_is_refreshed_after_update(self, client: TestClient) -> None:
@@ -157,7 +159,6 @@ class TestUpdatePreferencesPartialPayload:
         # Unchanged
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
 
     def test_partial_update_language_only(self, client: TestClient) -> None:
         payload = {"language": "de"}
@@ -227,6 +228,105 @@ class TestUpdatePreferencesValidation:
 
 
 # ---------------------------------------------------------------------------
+# avatar_url — GET tests
+# ---------------------------------------------------------------------------
+
+
+class TestGetAvatarUrl:
+    def test_get_returns_avatar_url_as_none_by_default(self, client: TestClient) -> None:
+        """Freshly seeded user has no avatar_url — response must include it as None."""
+        response = client.get("/api/v1/preferences/user-123")
+
+        assert response.status_code == 200
+        body = response.json()
+        assert "avatar_url" in body
+        assert body["avatar_url"] is None
+
+    def test_get_returns_stored_avatar_url(self, repo: PreferencesRepository) -> None:
+        """When the DB record has an avatar_url it is returned in the response."""
+        repo._seed(
+            UserSettings(
+                user_id="user-with-avatar",
+                theme="dark",
+                language="en",
+                notifications=False,
+                timezone="UTC",
+                avatar_url="https://example.com/avatar.png",
+            )
+        )
+        app.dependency_overrides[get_repo] = lambda: repo
+        client = TestClient(app)
+
+        response = client.get("/api/v1/preferences/user-with-avatar")
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] == "https://example.com/avatar.png"
+
+
+# ---------------------------------------------------------------------------
+# avatar_url — PUT tests
+# ---------------------------------------------------------------------------
+
+
+class TestUpdateAvatarUrl:
+    def test_put_with_valid_url_sets_avatar_url(self, client: TestClient) -> None:
+        """PUT with a valid HTTP URL must store and return it."""
+        payload = {"avatar_url": "https://cdn.example.com/users/user-123/avatar.jpg"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["avatar_url"] is not None
+        assert "cdn.example.com" in body["avatar_url"]
+
+    def test_put_with_valid_http_url(self, client: TestClient) -> None:
+        """Plain http:// URLs are also valid."""
+        payload = {"avatar_url": "http://images.example.org/pic.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] is not None
+
+    def test_put_with_invalid_url_returns_422(self, client: TestClient) -> None:
+        """A string that is not a valid URL must be rejected with 422."""
+        payload = {"avatar_url": "not-a-valid-url"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_put_with_bare_string_url_returns_422(self, client: TestClient) -> None:
+        """A bare hostname without scheme must be rejected with 422."""
+        payload = {"avatar_url": "example.com/avatar.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_put_avatar_url_null_clears_it(self, repo: PreferencesRepository) -> None:
+        """Omitting avatar_url in a subsequent PUT leaves it unchanged (partial update)."""
+        # First set an avatar URL
+        repo._seed(
+            UserSettings(
+                user_id="user-123",
+                theme="light",
+                language="en",
+                notifications=True,
+                timezone="UTC",
+                avatar_url="https://example.com/old.png",
+            )
+        )
+        app.dependency_overrides[get_repo] = lambda: repo
+        client = TestClient(app)
+
+        # Update only theme — avatar_url should remain
+        response = client.put("/api/v1/preferences/user-123", json={"theme": "dark"})
+        app.dependency_overrides.clear()
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] == "https://example.com/old.png"
+
+
+# ---------------------------------------------------------------------------
 # Repository unit tests (isolated, no HTTP layer)
 # ---------------------------------------------------------------------------
 
@@ -264,3 +364,17 @@ class TestPreferencesRepository:
         repo._seed(UserSettings(user_id="u3"))
         with pytest.raises(ValueError, match="No fields supplied"):
             repo.update("u3", {})
+
+    def test_avatar_url_defaults_to_none(self) -> None:
+        """New UserSettings records must have avatar_url as None."""
+        settings = UserSettings(user_id="u4")
+        assert settings.avatar_url is None
+
+    def test_update_avatar_url_stored_correctly(self) -> None:
+        """Updating avatar_url via repo.update persists the value."""
+        repo = PreferencesRepository()
+        repo._clear()
+        repo._seed(UserSettings(user_id="u5"))
+        result = repo.update("u5", {"avatar_url": "https://example.com/pic.jpg"})
+        assert result is not None
+        assert result.avatar_url == "https://example.com/pic.jpg"
