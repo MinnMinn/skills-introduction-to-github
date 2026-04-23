@@ -1,115 +1,110 @@
 # skills-introduction-to-github
 
-> A hands-on exercise repository for learning the core GitHub workflow — branching, committing, opening pull requests, and merging.
+> A hands-on Go project demonstrating GitHub fundamentals — branching, pull requests, and clean code organisation — through a simple **User CRUD** implementation.
 
 ---
 
-## 📖 Description
+## 📦 Project Description
 
-**skills-introduction-to-github** is a beginner-friendly project template provided by [GitHub Skills](https://skills.github.com/). It guides you through the fundamental steps of collaborating on GitHub:
+This repository is a beginner-friendly introduction to GitHub workflows.  
+It ships a self-contained Go package (`user`) that implements full **Create / Read / Update / Delete** operations for a `User` entity using an in-memory, thread-safe store — no external dependencies required.
 
-- Creating and switching branches
-- Committing changes to a branch
-- Opening a pull request
-- Merging a pull request into `main`
-
-By the end of the exercise you will be comfortable with the day-to-day GitHub workflow used by millions of developers.
+### Key features
+| Feature | Details |
+|---|---|
+| `User` struct | `ID`, `Name`, `Email`, `CreatedAt`, `UpdatedAt` |
+| `Store.Create` | Validates input, sets timestamps, rejects duplicate IDs |
+| `Store.ReadByID` | Fetches a single user by ID |
+| `Store.ReadAll` | Returns all stored users |
+| `Store.Update` | Patches `Name` / `Email`; updates `UpdatedAt` |
+| `Store.Delete` | Removes a user; returns `ErrNotFound` if absent |
+| Thread safety | All methods guarded by `sync.RWMutex` |
+| Sentinel errors | `ErrNotFound`, `ErrAlreadyExists`, `ErrInvalidID`, … |
 
 ---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
+- [Go 1.21+](https://go.dev/dl/)
+- Git
 
-- A free [GitHub account](https://github.com/join)
-- [Git](https://git-scm.com/downloads) installed on your machine (version 2.x or later)
-- A terminal / command-line interface
+### Clone & run tests
 
-### Setup
+```bash
+# 1. Clone the repository
+git clone https://github.com/MinnMinn/skills-introduction-to-github.git
+cd skills-introduction-to-github
 
-1. **Fork or use this repository**
+# 2. Run all tests
+go test ./...
 
-   Click **Use this template** (or fork the repo) to create your own copy under your GitHub account.
+# 3. Run tests with the race detector (recommended)
+go test -race ./...
 
-2. **Clone your copy locally**
+# 4. Run tests with verbose output
+go test -v ./user/...
+```
 
-   ```bash
-   git clone https://github.com/<your-username>/skills-introduction-to-github.git
-   cd skills-introduction-to-github
-   ```
+### Use the package in your own code
 
-3. **Create a new branch**
+```go
+package main
 
-   ```bash
-   git checkout -b my-first-branch
-   ```
+import (
+    "fmt"
+    "github.com/MinnMinn/skills-introduction-to-github/user"
+)
 
-4. **Make a change and commit it**
+func main() {
+    store := user.NewStore()
 
-   ```bash
-   echo "Hello, GitHub!" >> PROFILE.md
-   git add PROFILE.md
-   git commit -m "Add profile file"
-   ```
+    // Create
+    u, _ := store.Create(user.User{
+        ID:    "1",
+        Name:  "Alice",
+        Email: "alice@example.com",
+    })
+    fmt.Println("Created:", u.Name)
 
-5. **Push your branch and open a pull request**
+    // Read
+    found, _ := store.ReadByID("1")
+    fmt.Println("Found:", found.Email)
 
-   ```bash
-   git push origin my-first-branch
-   ```
+    // Update
+    updated, _ := store.Update("1", user.UpdateInput{Name: "Alicia"})
+    fmt.Println("Updated:", updated.Name)
 
-   Then open a pull request on GitHub from `my-first-branch` → `main`.
-
-6. **Merge the pull request** once it has been reviewed and all checks pass.
+    // Delete
+    _ = store.Delete("1")
+    fmt.Println("Deleted user 1")
+}
+```
 
 ---
 
 ## 🤝 How to Contribute
 
-Contributions, improvements, and feedback are welcome! Here's how to get involved:
+Contributions are welcome! Please follow these steps:
 
-1. **Fork** this repository to your own GitHub account.
-2. **Clone** your fork locally:
+1. **Fork** this repository and create your feature branch:
    ```bash
-   git clone https://github.com/<your-username>/skills-introduction-to-github.git
+   git checkout -b feature/your-feature-name
    ```
-3. **Create a feature branch** with a descriptive name:
+2. **Make your changes** — keep commits small and focused.
+3. **Write or update tests** for any new behaviour.
+4. **Run the test suite** and ensure it passes:
    ```bash
-   git checkout -b feature/your-improvement
+   go test -race ./...
    ```
-4. **Make your changes**, following the existing file and Markdown conventions.
-5. **Commit** your changes with a clear message:
-   ```bash
-   git commit -m "docs: improve setup instructions"
-   ```
-6. **Push** your branch:
-   ```bash
-   git push origin feature/your-improvement
-   ```
-7. **Open a Pull Request** against the `main` branch of the original repository and describe what you changed and why.
+5. **Open a Pull Request** against `main` with a clear title and description.
 
-Please be respectful and follow the [Contributor Covenant Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md).
+Please adhere to the existing code style and add comments for exported identifiers.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for full details.
+This project is licensed under the **MIT License** — see the [LICENSE](LICENSE) file for details.
 
-```
-Copyright (c) GitHub, Inc.
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-```
-
----
-
-&copy; 2025 GitHub &bull; [Code of Conduct](https://www.contributor-covenant.org/version/2/1/code_of_conduct/code_of_conduct.md) &bull; [MIT License](LICENSE)
+© 2025 GitHub
