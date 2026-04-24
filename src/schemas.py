@@ -12,7 +12,7 @@ import uuid
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import AnyHttpUrl, BaseModel, Field, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ class PreferencesResponse(BaseModel):
     theme: Literal["light", "dark"]
     language: str
     notifications: bool
-    timezone: str
+    avatar_url: Optional[str] = None
     updated_at: str
 
     model_config = {"from_attributes": True}
@@ -49,7 +49,7 @@ class PreferencesUpdateRequest(BaseModel):
     theme: Optional[Literal["light", "dark"]] = None
     language: Optional[str] = None
     notifications: Optional[bool] = None
-    timezone: Optional[str] = None
+    avatar_url: Optional[AnyHttpUrl] = None
 
     @field_validator("language")
     @classmethod
@@ -58,16 +58,26 @@ class PreferencesUpdateRequest(BaseModel):
             raise ValueError("language must not be blank")
         return v
 
-    @field_validator("timezone")
+    @field_validator("avatar_url", mode="before")
     @classmethod
-    def timezone_not_blank(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not v.strip():
-            raise ValueError("timezone must not be blank")
+    def avatar_url_to_str(cls, v: object) -> object:
+        """Pass-through; Pydantic's AnyHttpUrl already validates the URL format."""
         return v
 
     def has_updates(self) -> bool:
         """Return True if at least one field was supplied."""
         return any(v is not None for v in self.model_dump().values())
+
+    def model_dump_updates(self) -> dict:
+        """
+        Return only the non-None fields, converting AnyHttpUrl values to plain
+        strings so the repository layer stays URL-type-agnostic.
+        """
+        result = {}
+        for k, v in self.model_dump().items():
+            if v is not None:
+                result[k] = str(v) if k == "avatar_url" else v
+        return result
 
 
 # ---------------------------------------------------------------------------
