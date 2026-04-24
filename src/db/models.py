@@ -10,6 +10,7 @@ NOTE: Do NOT modify existing model schemas — they reflect live DB tables.
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import Optional
 
 
 # ---------------------------------------------------------------------------
@@ -21,6 +22,7 @@ from datetime import datetime, timezone
 #     language        TEXT    (e.g. "en", "fr")
 #     notifications   BOOLEAN
 #     timezone        TEXT    (e.g. "UTC", "America/New_York")
+#     avatar_url      TEXT    (nullable, validated URL)
 #     updated_at      TEXT    (ISO-8601 timestamp, managed by the DB)
 # ---------------------------------------------------------------------------
 
@@ -34,6 +36,7 @@ class UserSettings:
     language: str = "en"
     notifications: bool = True
     timezone: str = "UTC"
+    avatar_url: Optional[str] = None
     updated_at: str = field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
