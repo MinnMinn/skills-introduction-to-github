@@ -30,6 +30,22 @@ def get_repo() -> PreferencesRepository:
 
 
 # ---------------------------------------------------------------------------
+# Helper — build a PreferencesResponse from a UserSettings record
+# ---------------------------------------------------------------------------
+
+
+def _to_response(record) -> PreferencesResponse:
+    return PreferencesResponse(
+        user_id=record.user_id,
+        theme=record.theme,
+        language=record.language,
+        notifications=record.notifications,
+        avatar_url=record.avatar_url,
+        updated_at=record.updated_at,
+    )
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/preferences/{user_id}
 # ---------------------------------------------------------------------------
 
@@ -54,14 +70,7 @@ def get_preferences(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User '{user_id}' not found",
         )
-    return PreferencesResponse(
-        user_id=record.user_id,
-        theme=record.theme,
-        language=record.language,
-        notifications=record.notifications,
-        timezone=record.timezone,
-        updated_at=record.updated_at,
-    )
+    return _to_response(record)
 
 
 # ---------------------------------------------------------------------------
@@ -96,8 +105,9 @@ def update_preferences(
             detail="Request body must contain at least one field to update",
         )
 
-    # Build a dict of only the supplied (non-None) fields
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Build a dict of only the supplied (non-None) fields.
+    # avatar_url is converted to a plain string via model_dump_updates().
+    updates = payload.model_dump_updates()
 
     record = repo.update(user_id, updates)
     if record is None:
@@ -106,11 +116,4 @@ def update_preferences(
             detail=f"User '{user_id}' not found",
         )
 
-    return PreferencesResponse(
-        user_id=record.user_id,
-        theme=record.theme,
-        language=record.language,
-        notifications=record.notifications,
-        timezone=record.timezone,
-        updated_at=record.updated_at,
-    )
+    return _to_response(record)
