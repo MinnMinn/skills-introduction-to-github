@@ -59,7 +59,7 @@ def get_preferences(
         theme=record.theme,
         language=record.language,
         notifications=record.notifications,
-        timezone=record.timezone,
+        avatar_url=record.avatar_url,
         updated_at=record.updated_at,
     )
 
@@ -96,8 +96,12 @@ def update_preferences(
             detail="Request body must contain at least one field to update",
         )
 
-    # Build a dict of only the supplied (non-None) fields
-    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Build a dict of only the supplied (non-None) fields.
+    # avatar_url is an HttpUrl in Pydantic v2, so serialise it to str for storage.
+    updates: dict = {}
+    for key, value in payload.model_dump().items():
+        if value is not None:
+            updates[key] = str(value) if key == "avatar_url" else value
 
     record = repo.update(user_id, updates)
     if record is None:
@@ -111,6 +115,6 @@ def update_preferences(
         theme=record.theme,
         language=record.language,
         notifications=record.notifications,
-        timezone=record.timezone,
+        avatar_url=record.avatar_url,
         updated_at=record.updated_at,
     )
