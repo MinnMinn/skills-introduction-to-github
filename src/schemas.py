@@ -27,7 +27,7 @@ class PreferencesResponse(BaseModel):
     theme: Literal["light", "dark"]
     language: str
     notifications: bool
-    timezone: str
+    avatar_url: Optional[str] = None
     updated_at: str
 
     model_config = {"from_attributes": True}
@@ -49,7 +49,7 @@ class PreferencesUpdateRequest(BaseModel):
     theme: Optional[Literal["light", "dark"]] = None
     language: Optional[str] = None
     notifications: Optional[bool] = None
-    timezone: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     @field_validator("language")
     @classmethod
@@ -58,11 +58,22 @@ class PreferencesUpdateRequest(BaseModel):
             raise ValueError("language must not be blank")
         return v
 
-    @field_validator("timezone")
+    @field_validator("avatar_url")
     @classmethod
-    def timezone_not_blank(cls, v: Optional[str]) -> Optional[str]:
-        if v is not None and not v.strip():
-            raise ValueError("timezone must not be blank")
+    def avatar_url_valid(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that avatar_url, when provided, is a valid http/https URL."""
+        if v is None:
+            return v
+        import re
+        pattern = re.compile(
+            r"^https?://"                   # scheme: http or https
+            r"(?:[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+)"  # authority + path
+            r"$"
+        )
+        if not pattern.match(v):
+            raise ValueError(
+                "avatar_url must be a valid http or https URL"
+            )
         return v
 
     def has_updates(self) -> bool:
