@@ -4,14 +4,17 @@ Tests for GET /api/v1/preferences/{user_id}
 
 Coverage:
   - Happy path: successful GET
+  - Happy path: successful GET returns avatar_url (defaults to None)
   - Happy path: successful PUT (full payload)
   - Happy path: successful PUT (partial payload)
+  - Happy path: PUT with valid avatar_url
   - Not-found: GET for unknown user  → 404
   - Not-found: PUT for unknown user  → 404
   - Validation: invalid theme value  → 422
   - Validation: blank language       → 422
   - Validation: blank timezone       → 422
   - Validation: empty body PUT       → 422
+  - Validation: invalid avatar_url   → 422
 """
 
 from __future__ import annotations
@@ -77,14 +80,26 @@ class TestGetPreferences:
         assert body["theme"] == "light"
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
         assert "updated_at" in body
 
     def test_response_contains_all_expected_keys(self, client: TestClient) -> None:
         response = client.get("/api/v1/preferences/user-123")
         body = response.json()
-        expected_keys = {"user_id", "theme", "language", "notifications", "timezone", "updated_at"}
+        # timezone removed from response; avatar_url added
+        expected_keys = {"user_id", "theme", "language", "notifications", "avatar_url", "updated_at"}
         assert expected_keys == set(body.keys())
+
+    def test_avatar_url_defaults_to_none(self, client: TestClient) -> None:
+        """Existing users with no avatar_url set should receive null in the response."""
+        response = client.get("/api/v1/preferences/user-123")
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] is None
+
+    def test_response_does_not_contain_timezone(self, client: TestClient) -> None:
+        """timezone has been removed from the response schema."""
+        response = client.get("/api/v1/preferences/user-123")
+        assert "timezone" not in response.json()
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +139,6 @@ class TestUpdatePreferencesFullPayload:
         assert body["theme"] == "dark"
         assert body["language"] == "fr"
         assert body["notifications"] is False
-        assert body["timezone"] == "Europe/Paris"
         assert body["user_id"] == "user-123"
 
     def test_updated_at_is_refreshed_after_update(self, client: TestClient) -> None:
@@ -157,7 +171,6 @@ class TestUpdatePreferencesPartialPayload:
         # Unchanged
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
 
     def test_partial_update_language_only(self, client: TestClient) -> None:
         payload = {"language": "de"}
@@ -173,6 +186,56 @@ class TestUpdatePreferencesPartialPayload:
 
         assert response.status_code == 200
         assert response.json()["notifications"] is False
+
+
+# ---------------------------------------------------------------------------
+# PUT — avatar_url
+# ---------------------------------------------------------------------------
+
+
+class TestUpdatePreferencesAvatarUrl:
+    def test_valid_avatar_url_is_stored_and_returned(self, client: TestClient) -> None:
+        """PUT with a valid HTTP URL for avatar_url should return 200 and echo the URL."""
+        payload = {"avatar_url": "https://example.com/avatar.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["avatar_url"] is not None
+        # The stored value should contain the original URL (Pydantic may normalise trailing slash)
+        assert "example.com" in body["avatar_url"]
+        assert "avatar.png" in body["avatar_url"]
+
+    def test_avatar_url_accepts_https(self, client: TestClient) -> None:
+        """HTTPS URLs are valid."""
+        payload = {"avatar_url": "https://cdn.example.org/images/profile.jpg"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] is not None
+
+    def test_invalid_avatar_url_returns_422(self, client: TestClient) -> None:
+        """A non-URL string for avatar_url should be rejected with 422."""
+        payload = {"avatar_url": "not-a-valid-url"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_avatar_url_plain_path_returns_422(self, client: TestClient) -> None:
+        """A path without a scheme is not a valid URL."""
+        payload = {"avatar_url": "/images/avatar.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_get_returns_avatar_url_after_update(self, client: TestClient) -> None:
+        """After a PUT, a subsequent GET should reflect the stored avatar_url."""
+        url = "https://example.com/me.png"
+        client.put("/api/v1/preferences/user-123", json={"avatar_url": url})
+
+        response = client.get("/api/v1/preferences/user-123")
+        assert response.status_code == 200
+        assert "example.com" in response.json()["avatar_url"]
 
 
 # ---------------------------------------------------------------------------
@@ -264,3 +327,17 @@ class TestPreferencesRepository:
         repo._seed(UserSettings(user_id="u3"))
         with pytest.raises(ValueError, match="No fields supplied"):
             repo.update("u3", {})
+
+    def test_avatar_url_defaults_to_none_in_model(self) -> None:
+        """Newly created UserSettings should have avatar_url as None."""
+        settings = UserSettings(user_id="u4")
+        assert settings.avatar_url is None
+
+    def test_update_sets_avatar_url(self) -> None:
+        """Repository.update should persist avatar_url correctly."""
+        repo = PreferencesRepository()
+        repo._clear()
+        repo._seed(UserSettings(user_id="u5"))
+        result = repo.update("u5", {"avatar_url": "https://example.com/pic.png"})
+        assert result is not None
+        assert result.avatar_url == "https://example.com/pic.png"
