@@ -12,7 +12,7 @@ import uuid
 from decimal import Decimal
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 
 
 # ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ class PreferencesResponse(BaseModel):
     theme: Literal["light", "dark"]
     language: str
     notifications: bool
-    timezone: str
+    avatar_url: Optional[str] = None
     updated_at: str
 
     model_config = {"from_attributes": True}
@@ -50,6 +50,7 @@ class PreferencesUpdateRequest(BaseModel):
     language: Optional[str] = None
     notifications: Optional[bool] = None
     timezone: Optional[str] = None
+    avatar_url: Optional[HttpUrl] = None
 
     @field_validator("language")
     @classmethod
@@ -68,6 +69,18 @@ class PreferencesUpdateRequest(BaseModel):
     def has_updates(self) -> bool:
         """Return True if at least one field was supplied."""
         return any(v is not None for v in self.model_dump().values())
+
+    def to_update_dict(self) -> dict:
+        """
+        Return a dict of only the supplied (non-None) fields, with
+        avatar_url serialised to a plain string for storage.
+        """
+        result = {}
+        for key, value in self.model_dump().items():
+            if value is not None:
+                result[key] = value
+        # model_dump() converts HttpUrl to a string automatically in Pydantic v2
+        return result
 
 
 # ---------------------------------------------------------------------------
