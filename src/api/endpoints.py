@@ -59,7 +59,7 @@ def get_preferences(
         theme=record.theme,
         language=record.language,
         notifications=record.notifications,
-        timezone=record.timezone,
+        avatar_url=record.avatar_url,
         updated_at=record.updated_at,
     )
 
@@ -111,6 +111,6 @@ def update_preferences(
         theme=record.theme,
         language=record.language,
         notifications=record.notifications,
-        timezone=record.timezone,
+        avatar_url=record.avatar_url,
         updated_at=record.updated_at,
     )
