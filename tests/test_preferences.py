@@ -4,14 +4,17 @@ Tests for GET /api/v1/preferences/{user_id}
 
 Coverage:
   - Happy path: successful GET
+  - Happy path: successful GET returns avatar_url (None by default)
   - Happy path: successful PUT (full payload)
   - Happy path: successful PUT (partial payload)
+  - Happy path: PUT with valid avatar_url
   - Not-found: GET for unknown user  → 404
   - Not-found: PUT for unknown user  → 404
   - Validation: invalid theme value  → 422
   - Validation: blank language       → 422
   - Validation: blank timezone       → 422
   - Validation: empty body PUT       → 422
+  - Validation: invalid avatar_url   → 422
 """
 
 from __future__ import annotations
@@ -77,14 +80,21 @@ class TestGetPreferences:
         assert body["theme"] == "light"
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
         assert "updated_at" in body
 
     def test_response_contains_all_expected_keys(self, client: TestClient) -> None:
         response = client.get("/api/v1/preferences/user-123")
         body = response.json()
-        expected_keys = {"user_id", "theme", "language", "notifications", "timezone", "updated_at"}
+        # timezone has been removed from the response; avatar_url has been added
+        expected_keys = {"user_id", "theme", "language", "notifications", "avatar_url", "updated_at"}
         assert expected_keys == set(body.keys())
+
+    def test_get_returns_avatar_url_none_by_default(self, client: TestClient) -> None:
+        """A freshly seeded user should have avatar_url as None."""
+        response = client.get("/api/v1/preferences/user-123")
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] is None
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +134,6 @@ class TestUpdatePreferencesFullPayload:
         assert body["theme"] == "dark"
         assert body["language"] == "fr"
         assert body["notifications"] is False
-        assert body["timezone"] == "Europe/Paris"
         assert body["user_id"] == "user-123"
 
     def test_updated_at_is_refreshed_after_update(self, client: TestClient) -> None:
@@ -157,7 +166,6 @@ class TestUpdatePreferencesPartialPayload:
         # Unchanged
         assert body["language"] == "en"
         assert body["notifications"] is True
-        assert body["timezone"] == "UTC"
 
     def test_partial_update_language_only(self, client: TestClient) -> None:
         payload = {"language": "de"}
@@ -173,6 +181,54 @@ class TestUpdatePreferencesPartialPayload:
 
         assert response.status_code == 200
         assert response.json()["notifications"] is False
+
+
+# ---------------------------------------------------------------------------
+# PUT — avatar_url
+# ---------------------------------------------------------------------------
+
+
+class TestUpdatePreferencesAvatarUrl:
+    def test_put_valid_avatar_url_returns_200(self, client: TestClient) -> None:
+        """Setting a valid HTTP URL for avatar_url should succeed."""
+        payload = {"avatar_url": "https://example.com/avatar.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] == "https://example.com/avatar.png"
+
+    def test_put_valid_http_avatar_url_returns_200(self, client: TestClient) -> None:
+        """HTTP (non-HTTPS) URLs should also be accepted."""
+        payload = {"avatar_url": "http://cdn.example.org/images/me.jpg"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] == "http://cdn.example.org/images/me.jpg"
+
+    def test_put_invalid_avatar_url_returns_422(self, client: TestClient) -> None:
+        """A non-URL string for avatar_url must be rejected with 422."""
+        payload = {"avatar_url": "not-a-url"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_put_relative_avatar_url_returns_422(self, client: TestClient) -> None:
+        """A relative path is not a valid URL and must be rejected with 422."""
+        payload = {"avatar_url": "/images/avatar.png"}
+        response = client.put("/api/v1/preferences/user-123", json=payload)
+
+        assert response.status_code == 422
+
+    def test_get_returns_avatar_url_after_update(self, client: TestClient) -> None:
+        """After updating avatar_url, GET should reflect the new value."""
+        client.put(
+            "/api/v1/preferences/user-123",
+            json={"avatar_url": "https://example.com/pic.jpg"},
+        )
+        response = client.get("/api/v1/preferences/user-123")
+
+        assert response.status_code == 200
+        assert response.json()["avatar_url"] == "https://example.com/pic.jpg"
 
 
 # ---------------------------------------------------------------------------
@@ -264,3 +320,17 @@ class TestPreferencesRepository:
         repo._seed(UserSettings(user_id="u3"))
         with pytest.raises(ValueError, match="No fields supplied"):
             repo.update("u3", {})
+
+    def test_avatar_url_defaults_to_none(self) -> None:
+        """Newly created UserSettings should have avatar_url as None."""
+        settings = UserSettings(user_id="u4")
+        assert settings.avatar_url is None
+
+    def test_update_avatar_url(self) -> None:
+        """Repository should persist avatar_url updates."""
+        repo = PreferencesRepository()
+        repo._clear()
+        repo._seed(UserSettings(user_id="u5"))
+        result = repo.update("u5", {"avatar_url": "https://example.com/img.png"})
+        assert result is not None
+        assert result.avatar_url == "https://example.com/img.png"
