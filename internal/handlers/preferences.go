@@ -15,7 +15,7 @@ type PreferencesHandler struct {
 }
 
 // ---------------------------------------------------------------------------
-// Response / request shapes
+// Response shape
 // ---------------------------------------------------------------------------
 
 // preferencesResponse is the JSON shape returned by GET and PUT.
@@ -26,16 +26,6 @@ type preferencesResponse struct {
 	Notifications bool   `json:"notifications"`
 	Timezone      string `json:"timezone"`
 	UpdatedAt     string `json:"updated_at"`
-}
-
-// preferencesUpdateRequest is the JSON payload accepted by PUT.
-// All fields are pointers so we can distinguish "not supplied" from
-// the zero value (PATCH-style semantics).
-type preferencesUpdateRequest struct {
-	Theme         *string `json:"theme"`
-	Language      *string `json:"language"`
-	Notifications *bool   `json:"notifications"`
-	Timezone      *string `json:"timezone"`
 }
 
 // ---------------------------------------------------------------------------
@@ -67,59 +57,102 @@ func (h *PreferencesHandler) GetPreferences(w http.ResponseWriter, r *http.Reque
 // ---------------------------------------------------------------------------
 
 // UpdatePreferences handles PUT /api/v1/preferences/{user_id}.
+//
+// All fields are optional (PATCH-style semantics over PUT).  At least one
+// field must be supplied.  The handler validates values before persisting.
 func (h *PreferencesHandler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 	userID := r.PathValue("user_id")
 
-	var payload preferencesUpdateRequest
-	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+	// Decode into a raw map so that we can distinguish missing keys from
+	// explicit null / wrong-type values.
+	var raw map[string]json.RawMessage
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		writeValidationError(w, "body", "invalid JSON: "+err.Error())
 		return
 	}
 
-	// Validate and collect non-nil fields
-	fields := make(map[string]interface{})
 	var validationErrors []validationDetail
+	fields := make(map[string]interface{})
 
-	if payload.Theme != nil {
-		v := *payload.Theme
-		if v != "light" && v != "dark" {
+	// ---- theme -------------------------------------------------------
+	if rawTheme, ok := raw["theme"]; ok {
+		var v interface{}
+		_ = json.Unmarshal(rawTheme, &v)
+		sv, isStr := v.(string)
+		if !isStr {
+			validationErrors = append(validationErrors, validationDetail{
+				Loc:  []interface{}{"body", "theme"},
+				Msg:  "Input should be a string",
+				Type: "string_type",
+			})
+		} else if sv != "light" && sv != "dark" {
 			validationErrors = append(validationErrors, validationDetail{
 				Loc:  []interface{}{"body", "theme"},
 				Msg:  "Input should be 'light' or 'dark'",
 				Type: "enum",
 			})
 		} else {
-			fields["theme"] = v
+			fields["theme"] = sv
 		}
 	}
 
-	if payload.Language != nil {
-		v := *payload.Language
-		if strings.TrimSpace(v) == "" {
+	// ---- language ----------------------------------------------------
+	if rawLang, ok := raw["language"]; ok {
+		var v interface{}
+		_ = json.Unmarshal(rawLang, &v)
+		sv, isStr := v.(string)
+		if !isStr {
+			validationErrors = append(validationErrors, validationDetail{
+				Loc:  []interface{}{"body", "language"},
+				Msg:  "Input should be a string",
+				Type: "string_type",
+			})
+		} else if strings.TrimSpace(sv) == "" {
 			validationErrors = append(validationErrors, validationDetail{
 				Loc:  []interface{}{"body", "language"},
 				Msg:  "language must not be blank",
 				Type: "string_pattern_mismatch",
 			})
 		} else {
-			fields["language"] = v
+			fields["language"] = sv
 		}
 	}
 
-	if payload.Notifications != nil {
-		fields["notifications"] = *payload.Notifications
+	// ---- notifications -----------------------------------------------
+	if rawNotif, ok := raw["notifications"]; ok {
+		var v interface{}
+		_ = json.Unmarshal(rawNotif, &v)
+		bv, isBool := v.(bool)
+		if !isBool {
+			validationErrors = append(validationErrors, validationDetail{
+				Loc:  []interface{}{"body", "notifications"},
+				Msg:  "Input should be a valid boolean",
+				Type: "bool_parsing",
+			})
+		} else {
+			fields["notifications"] = bv
+		}
 	}
 
-	if payload.Timezone != nil {
-		v := *payload.Timezone
-		if strings.TrimSpace(v) == "" {
+	// ---- timezone ----------------------------------------------------
+	if rawTZ, ok := raw["timezone"]; ok {
+		var v interface{}
+		_ = json.Unmarshal(rawTZ, &v)
+		sv, isStr := v.(string)
+		if !isStr {
+			validationErrors = append(validationErrors, validationDetail{
+				Loc:  []interface{}{"body", "timezone"},
+				Msg:  "Input should be a string",
+				Type: "string_type",
+			})
+		} else if strings.TrimSpace(sv) == "" {
 			validationErrors = append(validationErrors, validationDetail{
 				Loc:  []interface{}{"body", "timezone"},
 				Msg:  "timezone must not be blank",
 				Type: "string_pattern_mismatch",
 			})
 		} else {
-			fields["timezone"] = v
+			fields["timezone"] = sv
 		}
 	}
 
