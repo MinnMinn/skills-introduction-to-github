@@ -8,6 +8,7 @@ Sections:
 
 from __future__ import annotations
 
+import re
 import uuid
 from decimal import Decimal
 from typing import Literal, Optional
@@ -19,6 +20,12 @@ from pydantic import BaseModel, Field, field_validator
 # Preferences — Response schema
 # ---------------------------------------------------------------------------
 
+_URL_RE = re.compile(
+    r"^https?://"                      # scheme
+    r"(?:[A-Za-z0-9\-._~:/?#\[\]@!$&'()*+,;=%]+)"  # remainder
+    r"$"
+)
+
 
 class PreferencesResponse(BaseModel):
     """Full preferences object returned by GET and PUT."""
@@ -27,7 +34,7 @@ class PreferencesResponse(BaseModel):
     theme: Literal["light", "dark"]
     language: str
     notifications: bool
-    timezone: str
+    avatar_url: Optional[str] = None
     updated_at: str
 
     model_config = {"from_attributes": True}
@@ -50,6 +57,7 @@ class PreferencesUpdateRequest(BaseModel):
     language: Optional[str] = None
     notifications: Optional[bool] = None
     timezone: Optional[str] = None
+    avatar_url: Optional[str] = None
 
     @field_validator("language")
     @classmethod
@@ -63,6 +71,14 @@ class PreferencesUpdateRequest(BaseModel):
     def timezone_not_blank(cls, v: Optional[str]) -> Optional[str]:
         if v is not None and not v.strip():
             raise ValueError("timezone must not be blank")
+        return v
+
+    @field_validator("avatar_url")
+    @classmethod
+    def avatar_url_valid(cls, v: Optional[str]) -> Optional[str]:
+        """Validate that avatar_url is a valid HTTP/HTTPS URL when provided."""
+        if v is not None and not _URL_RE.match(v):
+            raise ValueError("avatar_url must be a valid HTTP or HTTPS URL")
         return v
 
     def has_updates(self) -> bool:
