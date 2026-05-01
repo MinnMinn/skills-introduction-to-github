@@ -1,0 +1,40 @@
+name: payments_app
+description: Stripe card-payment checkout — KAN-19
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Stripe Flutter SDK — tokenises card client-side (PCI compliant)
+  flutter_stripe: ^10.1.1
+
+  # Biometric authentication
+  local_auth: ^2.2.0
+
+  # HTTP client
+  dio: ^5.4.3+1
+
+  # State management
+  flutter_riverpod: ^2.5.1
+
+  # UUID generation for idempotency keys
+  uuid: ^4.3.3
+
+  # Env config
+  flutter_dotenv: ^5.1.0
+
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+  mocktail: ^1.0.3
+
+flutter:
+  uses-material-design: true
